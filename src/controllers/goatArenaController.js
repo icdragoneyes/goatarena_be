@@ -87,6 +87,7 @@ async function startNewGame() {
     //calculate
     //trigger start game
     await createGame(values);
+    await fetchCurrentGameStatus();
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Failed to initialize session." });
@@ -386,13 +387,52 @@ async function buyToken(wallet, side, txSignature, solAmount) {
   //write to db
 }
 
-async function sellToken() {
+async function sellToken(wallet, tokenAmount, side) {
   //check if game still active
-  //get token balance
-  //calculate how many sol will be sent - fee and progressive tax
-  //transfer to opposite pot
-  //burnt side token and send sol to caller wallet
+  var latestGame = await getGameInfo(0, true);
+  if (latestGame.timeEnded != null) {
+    return;
+  }
+  var balance = 0;
+  if (side == "over") {
+    balance = await getTokenBalance(latestGame.over_token_address, wallet);
+  } else {
+    balance = await getTokenBalance(latestGame.under_token_address, wallet);
+  }
+  if (balance < tokenAmount) {
+    return;
+  }
+  const progressiveTax = ((1 - latestGame.startTime) / 60) * 99;
+
+  //burn token
+  //send : 1. SOL - fee + tax to player, redistribute progressive tax
   //update to sell and game table
+}
+
+async function getTokenBalance(tokenMintAddress, walletAddress) {
+  try {
+    const tokenMint = new PublicKey(tokenMintAddress);
+    const walletPublicKey = new PublicKey(walletAddress);
+
+    // Find the associated token account for the wallet
+    const associatedTokenAddress = await PublicKey.findProgramAddress(
+      [
+        walletPublicKey.toBuffer(),
+        Buffer.from("tokenkegqfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"), // SPL Token Program ID
+        tokenMint.toBuffer(),
+      ],
+      new PublicKey("tokenkegqfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") // SPL Token Program ID
+    );
+
+    // Fetch account information
+    const accountInfo = await getAccount(connection, associatedTokenAddress[0]);
+
+    // Return the balance
+    return accountInfo.amount.toNumber(); // Convert from BigInt to number
+  } catch (error) {
+    console.error("Error fetching token balance:", error);
+    throw error;
+  }
 }
 
 function getPublicKey58(secretKey) {
@@ -401,10 +441,14 @@ function getPublicKey58(secretKey) {
     Uint8Array.from(base58ToSecretKeyArray(secretKey))
   ).publicKey.toBase58();
 }
-var lastGame = {};
+
 async function fetchCurrentGameStatus() {
   var latest = await getGameInfo(0, true);
   var latestGame = {};
+  if (latest.timeEnded != null) {
+    global.lastGame = { preparing: true, message: "preeparing for next round" };
+    return { preparing: true, message: "preeparing for next round" };
+  }
   latestGame.id = latest.id;
   latestGame.tokenSymbol = latest.memecoin_symbol;
   latestGame.tokenName = latest.memecoinName;
@@ -419,7 +463,7 @@ async function fetchCurrentGameStatus() {
   ).publicKey.toBase58();
   latestGame.startTime = latest.timeStarted;
 
-  lastGame = latestGame;
+  global.lastGame = latestGame;
   // console.log(latest, "<<< latest game");
   return latestGame;
 }

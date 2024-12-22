@@ -6,7 +6,7 @@ const fetch = require("node-fetch");
 if (!global.fetch) {
   global.fetch = fetch;
 }
-
+global.lastGame = {};
 const goatarena = require("./routes/goatarena");
 
 const app = express();
