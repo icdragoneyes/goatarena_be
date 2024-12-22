@@ -300,7 +300,6 @@ function calculateTokenAmount(solana, tokenPrice) {
 }
 
 async function buyToken(wallet, side, txSignature, solAmount) {
-  //var a = await getGameInfo(1, true);
   var checkSignature = await getBuyTransaction(
     "solana_tx_signature",
     txSignature,
@@ -308,15 +307,12 @@ async function buyToken(wallet, side, txSignature, solAmount) {
   );
 
   if (checkSignature != null) {
-    return "transaction signature already exist";
+    return { error: "transaction signature already exist" };
   }
   var values = buyModel;
 
   var latestGame = await getGameInfo(0, true);
-  //console.log(latestGame, "<<< latest gm");
-  var d = Object.values(latestGame);
-  // console.log(d, "<<< latest gm2");
-  //return;
+
   var targetWallet = getPublicKey58(latestGame.over_pot_address);
 
   values.token_price = latestGame.overPrice;
@@ -328,12 +324,12 @@ async function buyToken(wallet, side, txSignature, solAmount) {
   }
   var isValid = true;
 
-  /* isValid = await validateTransaction(
+  isValid = await validateTransaction(
     wallet,
     targetWallet,
     solAmount,
     txSignature
-  );*/
+  );
   if (isValid) {
     //mint
     const now = new Date().toISOString();
@@ -379,9 +375,8 @@ async function buyToken(wallet, side, txSignature, solAmount) {
     values.time = now;
     values = Object.values(values);
     var insert = await executeBuyToken(values);
-    console.log(latestGame, "<<< lastgm");
     latestGame = Object.values(latestGame);
-    var updateGameState = await updateGameAfterBuy(latestGame);
+    await updateGameAfterBuy(latestGame);
     return insert;
   }
   //check signature, from wallet, and target pot wallet, make sure is valid
@@ -391,7 +386,14 @@ async function buyToken(wallet, side, txSignature, solAmount) {
   //write to db
 }
 
-async function sellToken() {}
+async function sellToken() {
+  //check if game still active
+  //get token balance
+  //calculate how many sol will be sent - fee and progressive tax
+  //transfer to opposite pot
+  //burnt side token and send sol to caller wallet
+  //update to sell and game table
+}
 
 function getPublicKey58(secretKey) {
   console.log("errr5");
@@ -399,7 +401,7 @@ function getPublicKey58(secretKey) {
     Uint8Array.from(base58ToSecretKeyArray(secretKey))
   ).publicKey.toBase58();
 }
-
+var lastGame = {};
 async function fetchCurrentGameStatus() {
   var latest = await getGameInfo(0, true);
   var latestGame = {};
@@ -417,7 +419,7 @@ async function fetchCurrentGameStatus() {
   ).publicKey.toBase58();
   latestGame.startTime = latest.timeStarted;
 
-  console.log(latest.memecoin_symbol, "<<<mm");
+  lastGame = latestGame;
   // console.log(latest, "<<< latest game");
   return latestGame;
 }
@@ -432,6 +434,11 @@ async function settle() {
 }
 
 async function redeem() {
+  //get balance
+  //get latest game data
+  //calculate proportion of token burn request to claimable pot balance
+  //burn token, transfer SOL
+  //insert claim table, update game table on pot and token burnt
   //function to transfer SOL to redeemer proportionally to their token amount
 }
 

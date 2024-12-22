@@ -32,22 +32,22 @@ router.get("/", async (req, res) => {
 
 router.post("/buy", async (req, res) => {
   try {
-    var a = await buyToken(
-      "EHcZGQPZgn2igSxzRB4dtzSHBTK1kaZj55enbyKWSCCU",
-      "under",
-      "txSign10",
-      1000000000
-    );
-    const block = { data: a };
-    if (a.error) {
-    }
+    const { wallet, side, tx, amount } = req.body;
+    var a = await buyToken(wallet, side, tx, amount);
 
+    if (a.error) {
+      res.json({
+        error: a.error,
+      });
+      return;
+    }
+    const block = { data: a };
     if (block) {
       res.json({
-        lastBlock: block,
+        buyResult: block,
       });
     } else {
-      res.json({ message: "Failed " });
+      res.json({ message: "Buy Failed " });
       //res.status(401).json({ message: validationResult.message });
     }
   } catch (e) {
