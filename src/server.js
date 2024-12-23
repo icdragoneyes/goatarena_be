@@ -43,7 +43,7 @@ app.get("/", async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3009;
+const PORT = process.env.PORT || 3015;
 console.log(process.env.DEV, "<<<<<<<<<< DEV");
 console.log("Your environment variable:", process.env.BOT_TOKEN);
 // Use routes

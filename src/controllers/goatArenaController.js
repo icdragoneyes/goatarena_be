@@ -469,7 +469,7 @@ async function sellToken(wallet, tokenAmount, side, txSignature) {
   }
 
   var checkSignature = await getSellTransaction(
-    "solana_tx_signature",
+    "burn_tx_signature",
     txSignature,
     false
   );
@@ -492,7 +492,6 @@ async function sellToken(wallet, tokenAmount, side, txSignature) {
 
   const progressiveTax = ((1 - latestGame.startTime) / 60) * 99;
 
-  //burn token
   //send : 1. SOL - fee + tax to player, redistribute progressive tax
   //update to sell and game table
 }

@@ -40,3 +40,17 @@ export const buyModel = {
   time: "",
   tokens_received: 0,
 };
+
+export const sellTransactionModel = {
+  session_id: 0, // Foreign key, default to null
+  solana_wallet_address: "", // Default to an empty string
+  fees: 0, // Default to 0
+  solana_tx_signature: "", // Default to an empty string
+  side: "", // Default to an empty string
+  token_price: 0, // Default to 0
+  sell_token_amount: 0, // Default to 0
+  time: null, // Default to null (timestamp to be set when creating a record)
+  sol_received: 0, // Default to 0
+  progressive_fees: 0, // Default to 0
+  burn_tx_signature: "",
+};
