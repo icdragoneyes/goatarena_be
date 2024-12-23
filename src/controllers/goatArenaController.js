@@ -30,6 +30,7 @@ const {
   createGame,
   getBuyTransaction,
   updateGameAfterBuy,
+  getSellTransaction,
 } = require("../services/database");
 const { gameModel, buyModel } = require("../models/goatarenaModel");
 
@@ -402,8 +403,8 @@ async function buyToken(wallet, side, txSignature, solAmount) {
     solAmount,
     txSignature
   );
-  console.log(isValid, "<<<isv");
-  return;
+  //console.log(isValid, "<<<isv");
+  //return;
   if (isValid) {
     //mint
     const now = new Date().toISOString();
@@ -466,6 +467,17 @@ async function sellToken(wallet, tokenAmount, side, txSignature) {
   if (latestGame.timeEnded != null) {
     return;
   }
+
+  var checkSignature = await getSellTransaction(
+    "solana_tx_signature",
+    txSignature,
+    false
+  );
+
+  if (checkSignature != null) {
+    return { error: "burn transaction signature already exist" };
+  }
+
   var tokenMintAddress = latestGame.over_token_address;
   if (side == "under") tokenMintAddress = latestGame.under_token_address;
 
@@ -478,19 +490,6 @@ async function sellToken(wallet, tokenAmount, side, txSignature) {
 
   if (!isValid) return { error: "invalid burn transaction" };
 
-  //validate Sending token to burn address, sent to master wallet address
-
-  var balance = 0;
-  if (side == "over") {
-    balance = await getTokenBalance(latestGame.over_token_address, wallet);
-  } else {
-    balance = await getTokenBalance(latestGame.under_token_address, wallet);
-  }
-
-  console.log(balance, "<<< balance");
-  if (balance < tokenAmount) {
-    return;
-  }
   const progressiveTax = ((1 - latestGame.startTime) / 60) * 99;
 
   //burn token

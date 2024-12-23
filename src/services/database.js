@@ -226,6 +226,52 @@ async function getBuyTransaction(by, val, all) {
   }
 }
 
+async function getSellTransaction(by, val, all) {
+  try {
+    var query = `
+            SELECT * 
+            FROM public.sell_transactions
+            WHERE ${by} = $1;
+        `;
+    var values = [val];
+
+    if (all) {
+      query = `
+        SELECT * 
+        FROM public.buy_transactions;
+    `;
+      const values = [];
+    }
+
+    const res = await dbOperation(query, values);
+
+    if (res.length === 0) {
+      return null; // No transaction found
+    }
+
+    // Map the result into a JSON object
+    const transaction = res;
+    const transactionJson = {
+      id: transaction.id,
+      /* sessionId: transaction.session_id,
+      solanaWalletAddress: transaction.solana_wallet_address,
+      fees: transaction.fees,
+      solanaTxSignature: transaction.solana_tx_signature,
+      side: transaction.side,
+      tokenPrice: transaction.token_price,
+      buyTokenAmount: transaction.buy_token_amount,
+      totalInSolana: transaction.total_in_solana,
+      time: transaction.time,
+      tokensReceived: transaction.tokens_received, */
+    };
+
+    return transactionJson;
+  } catch (err) {
+    console.error("Error fetching buy transaction by ID:", err);
+    return { error: err };
+  }
+}
+
 // Example: UPDATE data
 async function updateExample() {
   const query = "UPDATE your_table SET column1 = $1 WHERE id = $2 RETURNING *";
@@ -288,4 +334,5 @@ module.exports = {
   executeBuyToken,
   getBuyTransaction,
   updateGameAfterBuy,
+  getSellTransaction,
 };
