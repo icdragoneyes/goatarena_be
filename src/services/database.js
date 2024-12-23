@@ -245,7 +245,7 @@ async function getBuyers(gameId, latest) {
     var values = [gameId];
 
     const res = await dbOperation(query, values);
-    console.log(res,"<<< a" )
+    
     //console.log(res, "<< res");
     if (res.length === 0) {
       return null; // Return null if no game is found
