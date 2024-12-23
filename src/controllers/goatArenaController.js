@@ -858,6 +858,8 @@ const perSecondProcess = setInterval(async () => {
   if(global.lastGame.status === undefined){
     //console.log("fetching...")
     await fetchCurrentGameStatus();
+  }else{
+   //console.log(global.lastGame.data,"<<< start time");
   }
   if (process.env.DEV == "dev") {
     return;
@@ -873,7 +875,7 @@ const perSecondProcess = setInterval(async () => {
 
   if (global.lastGame.status == "running") {
     const now = new Date().toISOString();
-    const fetchedTimestamp = new Date(global.lastGame.data.startTime); // Replace with your fetched timestamp
+    const fetchedTimestamp = new Date(global.lastGame.data.timeStarted); // Replace with your fetched timestamp
 
     // Add 60 minutes
     const next60Minutes = new Date(fetchedTimestamp.getTime() + 60 * 60 * 1000);
