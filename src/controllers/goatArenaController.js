@@ -501,11 +501,11 @@ async function sellToken(wallet, tokenAmount, side, txSignature) {
   if (!isValid) return { error: "invalid burn transaction" };
   sellValue.solana_tx_signature = txSignature;
 
-  var solValue = latestGame.overPrice * (tokenAmount / 1e9);
-  sellValue.token_price = latestGame.overPrice;
+  var solValue = Number(latestGame.overPrice) * (tokenAmount / 1e9);
+  sellValue.token_price = Number(latestGame.overPrice);
   if (side == "under") {
-    sellValue.token_price = latestGame.underPrice;
-    solValue = latestGame.underPrice * (tokenAmount / 1e9);
+    sellValue.token_price = Number(latestGame.underPrice);
+    solValue = Number(latestGame.underPrice) * (tokenAmount / 1e9);
     latestGame.underTokenBurnt =
       Number(latestGame.underTokenBurnt) + tokenAmount;
   } else {
@@ -537,10 +537,11 @@ async function sellToken(wallet, tokenAmount, side, txSignature) {
 
   latestGame.sell_fee = Number(latestGame.sell_fee) + Number(fee);
 
-  var sourcePotKey = getPublicKey58(latestGame.over_pot_address);
+  var sourcePotKey = latestGame.over_pot_address;
   var targetPotKey = getPublicKey58(latestGame.under_pot_address);
+
   if (side == "under") {
-    sourcePotKey = getPublicKey58(latestGame.under_pot_address);
+    sourcePotKey = latestGame.under_pot_address;
     targetPotKey = getPublicKey58(latestGame.over_pot_address);
     latestGame.overPot = Number(latestGame.overPot) + Number(solRedistribution);
     latestGame.underPot =
@@ -554,6 +555,7 @@ async function sellToken(wallet, tokenAmount, side, txSignature) {
 
   latestGame.totalPot =
     Number(latestGame.overPot) + Number(latestGame.underPot);
+
   latestGame.underPrice =
     Number(latestGame.underPot) /
     (Number(latestGame.underTokenMinted) - Number(latestGame.underTokenBurnt));
@@ -569,7 +571,15 @@ async function sellToken(wallet, tokenAmount, side, txSignature) {
     solRedistribution
   );
 
-  sellValue.burn_tx_signature = transferResult;
+  var transferClaimResult = await executeTransfer(
+    latestGame.id,
+    sourcePotKey,
+    wallet,
+    solNettMinusTax-5000
+  );
+
+  sellValue.burn_tx_signature = txSignature;
+  sellValue.solana_tx_signature = transferClaimResult;
   sellValue.time = new Date().toISOString();
   sellValue.side = side;
 
