@@ -853,6 +853,12 @@ function getPublicKey58(secretKey) {
 var fetchingLatestGame = false;
 
 const perSecondProcess = setInterval(async () => {
+  //console.log(global.lastGame ,"<<< stat")
+  //console.log("fetching...")
+  if(global.lastGame.status === undefined){
+    //console.log("fetching...")
+    await fetchCurrentGameStatus();
+  }
   if (process.env.DEV == "dev") {
     return;
   }
@@ -871,6 +877,8 @@ const perSecondProcess = setInterval(async () => {
 
     // Add 60 minutes
     const next60Minutes = new Date(fetchedTimestamp.getTime() + 60 * 60 * 1000);
+    console.log(now,"<<< now");
+    console.log(next60Minutes,"<<< next");
     if (now > next60Minutes) {
       try {
         fetchingLatestGame = true;

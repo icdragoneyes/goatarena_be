@@ -11,7 +11,7 @@ const {
 const router = express.Router();
 
 router.get("/", async (req, res) => {
-  console.log("ok");
+  //console.log("ok");
   try {
     await fetchCurrentGameStatus();
     const latest = global.lastGame;
