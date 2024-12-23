@@ -34,12 +34,13 @@ router.get("/", async (req, res) => {
 router.post("/buy", async (req, res) => {
   try {
     const { wallet, side, tx, amount } = req.body;
-    var a = await buyToken(
+    var a = await buyToken(wallet,side,tx,amount) = req.body;
+    /*var a = await buyToken(
       "EHcZGQPZgn2igSxzRB4dtzSHBTK1kaZj55enbyKWSCCU",
       "under",
       "12345",
       1000000000
-    );
+    ); */
 
     if (a.error) {
       res.json({
