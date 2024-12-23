@@ -942,6 +942,7 @@ async function settle() {
   if (latestGame.timeEnded != null) {
     return;
   }
+  console.log("settling...")
 
   latestGame.timeEnded = now;
   latestGame.memecoin_usd_end = await getTokenPrice(
