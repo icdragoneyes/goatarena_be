@@ -68,9 +68,10 @@ async function startNewGame() {
   try {
     //get memecoin
     var token = await scrapeGMGNAI();
+    if (!token) return;
     token = JSON.parse(token);
     if (token === undefined) return false;
-
+    retryScrape = false;
     const now = new Date().toISOString();
     var values = gameModel;
     values.contract_address_3 = token.TokenAddress;
@@ -853,21 +854,32 @@ const perSecondProcess = setInterval(async () => {
   if (process.env.DEV == "dev") {
     return;
   }
-  const now = new Date().toISOString();
-  const fetchedTimestamp = new Date(global.lastGame.startTime); // Replace with your fetched timestamp
 
-  // Add 60 minutes
-  const next60Minutes = new Date(fetchedTimestamp.getTime() + 60 * 60 * 1000);
-  if (now > next60Minutes) {
-    try {
-      fetchingLatestGame = true;
-      global.lastGame = {
-        status: "preparing",
-        message: "preparing for next round",
-      };
-      await settle();
-    } catch (e) {}
+  if (retryScrape) {
+    fetchingLatestGame = true;
+    await startNewGame();
     fetchingLatestGame = false;
+    retryScrape = false;
+    return;
+  }
+
+  if (global.lastGame.status == "running") {
+    const now = new Date().toISOString();
+    const fetchedTimestamp = new Date(global.lastGame.data.startTime); // Replace with your fetched timestamp
+
+    // Add 60 minutes
+    const next60Minutes = new Date(fetchedTimestamp.getTime() + 60 * 60 * 1000);
+    if (now > next60Minutes) {
+      try {
+        fetchingLatestGame = true;
+        global.lastGame = {
+          status: "preparing",
+          message: "preparing for next round",
+        };
+        await settle();
+      } catch (e) {}
+      fetchingLatestGame = false;
+    }
   }
   //return false;
   if (!fetchingLatestGame) {
@@ -965,7 +977,7 @@ async function settle() {
 
   //burn GOATAGI total buy_fee sell_fee
 }
-
+var retryScrape = false;
 async function scrapeGMGNAI() {
   const browser = await puppeteer.launch({
     headless: true, // Enable headless mode
@@ -1034,7 +1046,8 @@ async function scrapeGMGNAI() {
   } catch (error) {
     console.error("Error during scraping:", error.message);
     await browser.close();
-    throw error;
+    retryScrape = true;
+    return false;
   }
 }
 
