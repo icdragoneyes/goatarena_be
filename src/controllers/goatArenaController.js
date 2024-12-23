@@ -546,28 +546,49 @@ function getPublicKey58(secretKey) {
   ).publicKey.toBase58();
 }
 
+var fetchingLatestGame = false;
+
+const perSecondProcess = setInterval(async () => {
+  if (process.env.DEV == "dev") {
+    return;
+  }
+  //return false;
+  if (!fetchingLatestGame) {
+    try {
+      fetchingLatestGame = true;
+      await fetchCurrentGameStatus();
+    } catch (e) {
+      fetchingLatestGame = false;
+    }
+    fetchingLatestGame = false;
+  }
+}, 1000);
+
 async function fetchCurrentGameStatus() {
   var latest = await getGameInfo(0, true);
   var latestGame = {};
   if (latest.timeEnded != null) {
-    global.lastGame = { preparing: true, message: "preeparing for next round" };
-    return { preparing: true, message: "preeparing for next round" };
+    global.lastGame = { status: "preparing", message: "preparing for next round" };
+    return { status: "preparing", message: "preparing for next round" };
   }
-  latestGame.id = latest.id;
-  latestGame.tokenSymbol = latest.memecoin_symbol;
-  latestGame.tokenName = latest.memecoinName;
-  latestGame.tokenAddress = latest.contractAddress;
-  latestGame.overTokenAddress = latest.over_token_address;
-  latestGame.underTokenAddress = latest.under_token_address;
-  latestGame.overPotAddress = Keypair.fromSecretKey(
+  latestGame = latest;
+  latestGame.under_pot_address = getPublicKey58(latest.under_pot_address);
+  latestGame.over_pot_address = getPublicKey58(latest.over_pot_address);
+  latestGame.goatArenaBurnerWallet = getPublicKey58(masterWallet);
+  delete latestGame.buy_fee;
+  delete latestGame.sell_fee;
+  delete latestGame.memecoinPriceStart;
+  delete latestGame.memecoinPriceEnd;
+  delete latestGame.overUnderPriceLine;
+  /*latestGame.overPotAddress = Keypair.fromSecretKey(
     Uint8Array.from(base58ToSecretKeyArray(latest.over_pot_address))
   ).publicKey.toBase58();
   latestGame.underPotAddress = Keypair.fromSecretKey(
     Uint8Array.from(base58ToSecretKeyArray(latest.under_pot_address))
-  ).publicKey.toBase58();
-  latestGame.startTime = latest.timeStarted;
+  ).publicKey.toBase58(); */
+  //latestGame.startTime = latest.timeStarted;
 
-  global.lastGame = latestGame;
+  global.lastGame = {status : "running", data : latestGame};
   // console.log(latest, "<<< latest game");
   return latestGame;
 }
@@ -723,4 +744,6 @@ module.exports = {
   startNewGame,
   fetchCurrentGameStatus,
   sellToken,
+  validateBurnTransaction,
+  validateTransaction,
 };
