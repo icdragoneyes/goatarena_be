@@ -490,10 +490,134 @@ async function sellToken(wallet, tokenAmount, side, txSignature) {
 
   if (!isValid) return { error: "invalid burn transaction" };
 
-  const progressiveTax = ((1 - latestGame.startTime) / 60) * 99;
+  var solValue = latestGame.overPrice * (tokenAmount / 1e9);
+  if(side=="under"){
+    solValue = latestGame.underPrice * (tokenAmount / 1e9);
+  }
+  const fee = 0.01 * solValue;
+  const nett = 0.99 * solValue;
+
+  const fetchedTimestamp = new Date(latestGame.startTime); // Replace with your fetched timestamp
+
+  // Add 60 minutes
+  const next60Minutes = new Date(fetchedTimestamp.getTime() + 60 * 60 * 1000);
+  console.log("Next 60 Minutes:", next60Minutes.toISOString());
+
+  // Calculate minutes passed since fetched timestamp
+  const now = new Date();
+  const minutesPassed = Math.floor((now - fetchedTimestamp) / (60 * 1000));
+  console.log("Minutes Passed:", minutesPassed);
+
+  const progressiveTax = (minutesPassed / 60) * (99 / 100);
+  const solNettMinusTax = (1 - progressiveTax) * nett;
+  const solRedistribution = progressiveTax * nett;
+
+  var sourcePotKey = getPublicKey58(latestGame.over_pot_address);
+  if(side == "under") sourcePotKey = getPublicKey58(latestGame.under_pot_address);
+  
+  await executeTransfer(latestGame.id,sourcePotKey)
 
   //send : 1. SOL - fee + tax to player, redistribute progressive tax
   //update to sell and game table
+}
+
+
+async function executeTransfer(
+  gameId,
+  sourcePotKey,
+  targetPotKey,
+  amount_,
+  bet,
+  updateCanister
+) {
+  //5MJcZNtXqJNWDpdT8NhRBGtgGpT4cnfipn1ZQxq8QzpU2kBWwyAWrn93jm5AtMMwEvvyxroh9zbT7DzDJA196cQ1
+  //console.log("about to transfer REWARD " + amount_ + " to " + solanaWallet);
+  try {
+    //var sk = convertHexToSolanaSecretKey(privateKeyArray);
+    var sk = base58ToSecretKeyArray(sourcePotKey);
+    
+    const senderKeypair = Keypair.fromSecretKey(Uint8Array.from(sk));
+    const toPublicKey = new PublicKey(targetPotKey);
+    //var amountInSOL = await getSolanaWalletBalance(senderKeypair.publicKey);
+
+    // Connect to Solana cluster (mainnet, testnet, or devnet)
+   
+    var amountInSOL = parseInt(Number(amount_));
+    //console.log(senderKeypair.publicKey, "<<<<<source account");
+    if (amountInSOL < 5000) {
+      console.log("insufficient SOL");
+
+      return "insufficient SOL";
+    } else {
+      
+      const transactionFee = await getTransactionFee(
+        connection,
+        senderKeypair.publicKey
+      );
+      
+      if (amountInSOL < transactionFee) return;
+      
+      amountInSOL = amountInSOL - transactionFee;
+      // Fetch latest blockhash to include in the transaction
+
+      const { blockhash } = await connection.getLatestBlockhash("finalized");
+
+      // Create a transaction to transfer SOL
+      const transaction = new Transaction({
+        recentBlockhash: blockhash,
+        feePayer: senderKeypair.publicKey,
+      });
+
+      const blockHeightBuffer = 150;
+
+      // Add the instruction to send SOL
+      transaction.add(
+        SystemProgram.transfer({
+          fromPubkey: senderKeypair.publicKey,
+          toPubkey: toPublicKey,
+          lamports: amountInSOL, // Convert SOL to lamports
+        })
+      );
+      var msg = "goatPotMoving_" + gameId;
+      // Add the memo instruction (memo is a string)
+      // Create a memo instruction and add it to the transaction
+      const memoInstruction = new TransactionInstruction({
+        keys: [],
+        programId: new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"), // Memo Program ID
+        data: Buffer.from(msg), // Convert memo string to Buffer
+      });
+
+      // Add the memo instruction to the transaction
+      transaction.add(memoInstruction);
+
+      // Sign the transaction with the sender's keypair
+      var signature = false;
+      try {
+        const signature__ = await sendAndConfirmTransaction(
+          connection,
+          transaction,
+          [senderKeypair],
+          {
+            skipPreflight: false, // Optional: Set to true to skip preflight checks
+            commitment: "confirmed", // Set desired confirmation level
+            lastValidBlockHeight:
+              blockhash.lastValidBlockHeight + blockHeightBuffer, // Add buffer
+          }
+        );
+        signature = signature__;
+        console.log("Transaction successful with signature:", signature);
+      } catch (e) {
+        
+        return false;
+      }
+
+      
+
+      return signature;
+    }
+  } catch (e) {
+    return false;
+  }
 }
 
 async function getTokenBalance(tokenMintAddress, walletAddress) {
@@ -568,7 +692,10 @@ async function fetchCurrentGameStatus() {
   var latest = await getGameInfo(0, true);
   var latestGame = {};
   if (latest.timeEnded != null) {
-    global.lastGame = { status: "preparing", message: "preparing for next round" };
+    global.lastGame = {
+      status: "preparing",
+      message: "preparing for next round",
+    };
     return { status: "preparing", message: "preparing for next round" };
   }
   latestGame = latest;
@@ -588,7 +715,7 @@ async function fetchCurrentGameStatus() {
   ).publicKey.toBase58(); */
   //latestGame.startTime = latest.timeStarted;
 
-  global.lastGame = {status : "running", data : latestGame};
+  global.lastGame = { status: "running", data: latestGame };
   // console.log(latest, "<<< latest game");
   return latestGame;
 }

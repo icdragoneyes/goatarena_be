@@ -7,7 +7,7 @@ const {
   fetchCurrentGameStatus,
   sellToken,
 } = require("../controllers/goatArenaController");
-const { getGameInfo } = require("../services/database");
+
 
 const router = express.Router();
 
