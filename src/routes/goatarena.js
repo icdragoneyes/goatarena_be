@@ -5,6 +5,7 @@ const {
   scrapeGMGNAI,
   startNewGame,
   fetchCurrentGameStatus,
+  sellToken,
 } = require("../controllers/goatArenaController");
 const { getGameInfo } = require("../services/database");
 
@@ -33,7 +34,12 @@ router.get("/", async (req, res) => {
 router.post("/buy", async (req, res) => {
   try {
     const { wallet, side, tx, amount } = req.body;
-    var a = await buyToken(wallet, side, tx, amount);
+    var a = await buyToken(
+      "EHcZGQPZgn2igSxzRB4dtzSHBTK1kaZj55enbyKWSCCU",
+      "under",
+      "11112",
+      1000000000
+    );
 
     if (a.error) {
       res.json({
@@ -79,6 +85,11 @@ router.post("/new", async (req, res) => {
 
 router.post("/sell", async (req, res) => {
   try {
+    var a = await sellToken(
+      "EHcZGQPZgn2igSxzRB4dtzSHBTK1kaZj55enbyKWSCCU",
+      0,
+      "under"
+    );
     const block = { data: "ok" };
 
     if (block) {

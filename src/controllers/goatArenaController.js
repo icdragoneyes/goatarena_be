@@ -10,9 +10,11 @@ const {
   burn,
   TOKEN_PROGRAM_ID,
   Token,
-
+  getAccount,
   createMint,
   mintTo,
+  getAssociatedTokenAddress,
+  createAssociatedTokenAccount,
 } = require("@solana/spl-token");
 const bs58 = require("bs58");
 
@@ -292,6 +294,75 @@ async function validateTransaction(
   }
 }
 
+async function validateBurnTransaction(
+  senderWallet,
+  amount,
+  transactionSignature,
+  tokenMintAddress
+) {
+  try {
+    // Convert the amount to the smallest unit of the token (e.g., lamports for SPL tokens)
+    const tokenAmount = amount; // Assume amount is already in the token's smallest unit
+
+    // Fetch transaction details using the signature
+    const transaction = await connection.getParsedTransaction(
+      transactionSignature,
+      "confirmed"
+    );
+
+    if (!transaction) {
+      console.error("Transaction not found.");
+      return false;
+    }
+
+    // Extract transaction instructions
+    const instructions = transaction.transaction.message.instructions;
+
+    // Validate each instruction
+    for (const instruction of instructions) {
+      // Check if the instruction is from the SPL Token Program
+      if (
+        instruction.programId === "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" // SPL Token Program ID
+      ) {
+        const parsedInfo = instruction.parsed?.info;
+
+        if (!parsedInfo) continue;
+
+        const sourceTokenAccount = parsedInfo.source;
+        const destinationTokenAccount = parsedInfo.destination;
+        const mintAddress = parsedInfo.mint;
+        const amountTransferred = parsedInfo.amount;
+
+        // Fetch the mint address of the source token account
+        const senderTokenAccount = await connection.getParsedAccountInfo(
+          new PublicKey(sourceTokenAccount),
+          "confirmed"
+        );
+        const senderMintAddress =
+          senderTokenAccount.value?.data?.parsed?.info?.mint;
+
+        if (
+          sourceTokenAccount &&
+          destinationTokenAccount &&
+          mintAddress &&
+          senderMintAddress &&
+          senderWallet === sourceTokenAccount &&
+          getPublicKey58(masterWallet) === destinationTokenAccount &&
+          mintAddress === tokenMintAddress &&
+          Number(amountTransferred) === Number(tokenAmount)
+        ) {
+          return true; // Transaction matches the criteria
+        }
+      }
+    }
+
+    return false; // No matching instruction found
+  } catch (error) {
+    console.error("Error validating token transaction:", error);
+    return false;
+  }
+}
+
 function calculateTokenAmount(solana, tokenPrice) {
   console.log(solana, "<< sol");
   console.log(tokenPrice, "<< price");
@@ -331,6 +402,8 @@ async function buyToken(wallet, side, txSignature, solAmount) {
     solAmount,
     txSignature
   );
+  console.log(isValid, "<<<isv");
+  return;
   if (isValid) {
     //mint
     const now = new Date().toISOString();
@@ -387,18 +460,34 @@ async function buyToken(wallet, side, txSignature, solAmount) {
   //write to db
 }
 
-async function sellToken(wallet, tokenAmount, side) {
+async function sellToken(wallet, tokenAmount, side, txSignature) {
   //check if game still active
   var latestGame = await getGameInfo(0, true);
   if (latestGame.timeEnded != null) {
     return;
   }
+  var tokenMintAddress = latestGame.over_token_address;
+  if (side == "under") tokenMintAddress = latestGame.under_token_address;
+
+  const isValid = await validateBurnTransaction(
+    wallet,
+    tokenAmount,
+    txSignature,
+    tokenMintAddress
+  );
+
+  if (!isValid) return { error: "invalid burn transaction" };
+
+  //validate Sending token to burn address, sent to master wallet address
+
   var balance = 0;
   if (side == "over") {
     balance = await getTokenBalance(latestGame.over_token_address, wallet);
   } else {
     balance = await getTokenBalance(latestGame.under_token_address, wallet);
   }
+
+  console.log(balance, "<<< balance");
   if (balance < tokenAmount) {
     return;
   }
@@ -414,21 +503,38 @@ async function getTokenBalance(tokenMintAddress, walletAddress) {
     const tokenMint = new PublicKey(tokenMintAddress);
     const walletPublicKey = new PublicKey(walletAddress);
 
-    // Find the associated token account for the wallet
-    const associatedTokenAddress = await PublicKey.findProgramAddress(
-      [
-        walletPublicKey.toBuffer(),
-        Buffer.from("tokenkegqfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"), // SPL Token Program ID
-        tokenMint.toBuffer(),
-      ],
-      new PublicKey("tokenkegqfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") // SPL Token Program ID
+    var sk = base58ToSecretKeyArray(masterWallet);
+
+    const payer = Keypair.fromSecretKey(Uint8Array.from(sk));
+
+    const associatedTokenAddress = await getAssociatedTokenAddress(
+      tokenMint,
+      walletPublicKey
     );
 
-    // Fetch account information
-    const accountInfo = await getAccount(connection, associatedTokenAddress[0]);
+    let accountInfo;
+    try {
+      // Try to fetch the token account
+      accountInfo = await getAccount(connection, associatedTokenAddress);
+    } catch (error) {
+      if (error.name === "TokenAccountNotFoundError") {
+        console.log("Token account not found. Creating it...");
+        // Create the associated token account
+        await createAssociatedTokenAccount(
+          connection,
+          payer,
+          tokenMint,
+          walletPublicKey
+        );
+        accountInfo = await getAccount(connection, associatedTokenAddress);
+      } else {
+        throw error; // Re-throw other errors
+      }
+    }
 
     // Return the balance
-    return accountInfo.amount.toNumber(); // Convert from BigInt to number
+    //console.log(accountInfo, "<< acc");
+    return Number(accountInfo.amount); // Convert from BigInt to number
   } catch (error) {
     console.error("Error fetching token balance:", error);
     throw error;
@@ -618,4 +724,5 @@ module.exports = {
   scrapeGMGNAI,
   startNewGame,
   fetchCurrentGameStatus,
+  sellToken,
 };
