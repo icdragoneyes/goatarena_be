@@ -34,7 +34,7 @@ router.get("/", async (req, res) => {
 router.post("/buy", async (req, res) => {
   try {
     const { wallet, side, tx, amount } = req.body;
-    var a = await buyToken(wallet,side,tx,amount) = req.body;
+    var a = await buyToken(wallet,side,tx,amount);
     /*var a = await buyToken(
       "EHcZGQPZgn2igSxzRB4dtzSHBTK1kaZj55enbyKWSCCU",
       "under",
