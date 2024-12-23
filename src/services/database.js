@@ -126,7 +126,7 @@ async function executeSellToken(values) {
   //calculate slippage
   //insert buy transaction
   //update token price on game table
-  const query = `ß
+  const query = `
         INSERT INTO public.sell_transactions (
              session_id, solana_wallet_address, fees,
             solana_tx_signature, side, token_price,
@@ -134,6 +134,36 @@ async function executeSellToken(values) {
             progressive_fees, burn_tx_signature
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+        ) RETURNING id;
+    `;
+  try {
+    const result = dbOperation(query, values);
+    console.log("Inserted sell row:", result);
+    return result;
+  } catch (error) {
+    console.error("Error inserting into game table:", error);
+    throw error;
+  }
+}
+
+async function executeRedeem(values) {
+  //get latest token price
+  //calculate slippage
+  //insert buy transaction
+  //update token price on game table
+  const query = `
+        INSERT INTO public.claim_transactions (
+            session_id,
+            solana_wallet_address,
+            target_solana_wallet_address,
+            fees,
+            solana_tx_signature,
+            claim_token_amount,
+            "time",
+            sol_received,
+            burn_tx_signature
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9
         ) RETURNING id;
     `;
   try {
@@ -265,7 +295,53 @@ async function getSellTransaction(by, val, all) {
     if (all) {
       query = `
         SELECT * 
-        FROM public.buy_transactions;
+        FROM public.claim_transactions;
+    `;
+      const values = [];
+    }
+
+    const res = await dbOperation(query, values);
+
+    if (res.length === 0) {
+      return null; // No transaction found
+    }
+
+    // Map the result into a JSON object
+    const transaction = res;
+    const transactionJson = {
+      id: transaction.id,
+      /* sessionId: transaction.session_id,
+      solanaWalletAddress: transaction.solana_wallet_address,
+      fees: transaction.fees,
+      solanaTxSignature: transaction.solana_tx_signature,
+      side: transaction.side,
+      tokenPrice: transaction.token_price,
+      buyTokenAmount: transaction.buy_token_amount,
+      totalInSolana: transaction.total_in_solana,
+      time: transaction.time,
+      tokensReceived: transaction.tokens_received, */
+    };
+
+    return transactionJson;
+  } catch (err) {
+    console.error("Error fetching buy transaction by ID:", err);
+    return { error: err };
+  }
+}
+
+async function getClaimTransaction(by, val, all) {
+  try {
+    var query = `
+            SELECT * 
+            FROM public.claim_transactions
+            WHERE ${by} = $1;
+        `;
+    var values = [val];
+
+    if (all) {
+      query = `
+        SELECT * 
+        FROM public.claim_transactions;
     `;
       const values = [];
     }
@@ -362,5 +438,7 @@ module.exports = {
   getBuyTransaction,
   updateGame,
   getSellTransaction,
-  executeSellToken
+  executeSellToken,
+  getClaimTransaction,
+  executeRedeem
 };

@@ -55,8 +55,23 @@ const sellTransactionModel = {
   burn_tx_signature: "",
 };
 
+// Define the claim transaction model with default values
+const claimTransactionModel = {
+  session_id: 0, // Foreign key, default to 0
+  solana_wallet_address: "", // Default to an empty string
+  target_solana_wallet_address: "", // Default to an empty string
+  fees: 0, // Default to 0
+  solana_tx_signature: "", // Default to an empty string
+  claim_token_amount: 0, // Default to 0
+  time: null, // Default to null (timestamp to be set when creating a record)
+  sol_received: 0, // Default to 0
+  burn_tx_signature: "", // Default to an empty string
+};
+
+
 module.exports = {
   gameModel,
   buyModel,
-  sellTransactionModel
+  sellTransactionModel,
+  claimTransactionModel
 };

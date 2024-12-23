@@ -32,11 +32,13 @@ const {
   updateGame,
   getSellTransaction,
   executeSellToken,
+  getClaimTransaction,
 } = require("../services/database");
 const {
   gameModel,
   buyModel,
   sellTransactionModel,
+  claimTransactionModel,
 } = require("../models/goatarenaModel");
 
 const connection = new Connection(
@@ -499,7 +501,7 @@ async function sellToken(wallet, tokenAmount, side, txSignature) {
   );
 
   if (!isValid) return { error: "invalid burn transaction" };
-  sellValue.solana_tx_signature = txSignature;
+  sellValue.burn_tx_signature = txSignature;
 
   var solValue = Number(latestGame.overPrice) * (tokenAmount / 1e9);
   sellValue.token_price = Number(latestGame.overPrice);
@@ -530,7 +532,7 @@ async function sellToken(wallet, tokenAmount, side, txSignature) {
   const solNettMinusTax = (1 - progressiveTax) * nett;
   const solRedistribution = (2 * progressiveTax * nett) / 3;
   sellValue.sell_token_amount = tokenAmount;
-  sellValue.sol_received(solNettMinusTax);
+  sellValue.sol_received = solNettMinusTax;
 
   sellValue.fees = Number(fee);
   sellValue.progressive_fees = Number(progressiveTax * nett);
@@ -575,7 +577,7 @@ async function sellToken(wallet, tokenAmount, side, txSignature) {
     latestGame.id,
     sourcePotKey,
     wallet,
-    solNettMinusTax-5000
+    solNettMinusTax - 5000
   );
 
   sellValue.burn_tx_signature = txSignature;
@@ -585,11 +587,124 @@ async function sellToken(wallet, tokenAmount, side, txSignature) {
 
   sellValue = Object.values(sellValue);
   var insert = await executeSellToken(sellValue);
-
+  latestGame.claimableWinningPotInSol =
+    Number(latestGame.totalPot) -
+    (Number(latestGame.buy_fee) + Number(latestGame.sell_fee));
   latestGame = Object.values(latestGame);
   await updateGame(latestGame);
 
   await fetchCurrentGameStatus();
+
+  //send : 1. SOL - fee + tax to player, redistribute progressive tax
+  //update to sell and game table
+}
+
+async function redeemToken(gameid, wallet, tokenAmount, txSignature) {
+  //check if game still active
+  var latestGame = await getGameInfo(gameid, false);
+  if (latestGame.timeEnded == null) {
+    return;
+  }
+
+  if (Number(latestGame.claimableWinningPotInSol) <= 0) {
+    return;
+  }
+
+  var checkSignature = await getClaimTransaction(
+    "burn_tx_signature",
+    txSignature,
+    false
+  );
+
+  if (checkSignature != null) {
+    return { error: "burn transaction signature already exist" };
+  }
+
+  var sellValue = claimTransactionModel;
+
+  sellValue.session_id = gameid;
+  sellValue.solana_wallet_address = wallet;
+
+  var tokenSupply =
+    Number(latestGame.overTokenMinted) - Number(latestGame.overTokenBurnt);
+  var side = "over";
+  if (
+    Number(latestGame.memecoin_usd_end) < Number(latestGame.memecoin_usd_start)
+  ) {
+    side = "under";
+    tokenSupply =
+      Number(latestGame.underTokenMinted) - Number(latestGame.underTokenBurnt);
+  }
+
+  if (tokenSupply <= 0) return;
+
+  var tokenMintAddress = latestGame.over_token_address;
+  if (
+    Number(latestGame.memecoin_usd_end) < Number(latestGame.memecoin_usd_start)
+  )
+    tokenMintAddress = latestGame.under_token_address;
+
+  const isValid = await validateBurnTransaction(
+    wallet,
+    tokenAmount,
+    txSignature,
+    tokenMintAddress
+  );
+
+  if (!isValid) return { error: "invalid burn transaction" };
+  sellValue.burn_tx_signature = txSignature;
+  //if game is settled and transaction si valid, and total supply is good, start calculating redeem
+  //calculate sol value
+  var solValue =
+    (tokenAmount / tokenSupply) * Number(latestGame.claimableWinningPotInSol);
+
+  //burn token or decrease its amount
+  if (side == "under") {
+    latestGame.underTokenBurnt =
+      Number(latestGame.underTokenBurnt) + tokenAmount;
+  } else {
+    latestGame.overTokenBurnt = Number(latestGame.overTokenBurnt) + tokenAmount;
+  }
+
+  sellValue.sell_token_amount = tokenAmount;
+  sellValue.sol_received = solValue;
+
+  //initiate wallets to send
+  var sourcePotKey = latestGame.over_pot_address;
+  var targetPotKey = getPublicKey58(latestGame.under_pot_address);
+  if (side == "under") {
+    sourcePotKey = latestGame.under_pot_address;
+    targetPotKey = getPublicKey58(latestGame.over_pot_address);
+  } else {
+  }
+
+  latestGame.claimableWinningPotInSol =
+    Number(latestGame.claimableWinningPotInSol) - solValue;
+
+  //transfer
+  try {
+    var transferClaimResult = await executeTransfer(
+      latestGame.id,
+      sourcePotKey,
+      wallet,
+      solValue - 5000
+    );
+
+    sellValue.burn_tx_signature = txSignature;
+    sellValue.solana_tx_signature = transferClaimResult;
+    sellValue.time = new Date().toISOString();
+    sellValue.target_solana_wallet_address = wallet;
+
+    sellValue = Object.values(sellValue);
+    var insert = await executeRedeem(sellValue);
+
+    latestGame = Object.values(latestGame);
+    await updateGame(latestGame);
+
+    await fetchCurrentGameStatus();
+  } catch (e) {
+    return false;
+  }
 
   //send : 1. SOL - fee + tax to player, redistribute progressive tax
   //update to sell and game table
@@ -738,6 +853,22 @@ const perSecondProcess = setInterval(async () => {
   if (process.env.DEV == "dev") {
     return;
   }
+  const now = new Date().toISOString();
+  const fetchedTimestamp = new Date(global.lastGame.startTime); // Replace with your fetched timestamp
+
+  // Add 60 minutes
+  const next60Minutes = new Date(fetchedTimestamp.getTime() + 60 * 60 * 1000);
+  if (now > next60Minutes) {
+    try {
+      fetchingLatestGame = true;
+      global.lastGame = {
+        status: "preparing",
+        message: "preparing for next round",
+      };
+      await settle();
+    } catch (e) {}
+    fetchingLatestGame = false;
+  }
   //return false;
   if (!fetchingLatestGame) {
     try {
@@ -783,25 +914,56 @@ async function fetchCurrentGameStatus() {
 }
 
 async function settle() {
-  //function to transfer the all pot to winning pot
-  //select latest game
-  //get memecoin last data
-  //update time ended and get winning and loser addresses
-  //transfer from loser to winning address
-  //burn goatagi
-}
+  const now = new Date().toISOString();
+  var latestGame = await getGameInfo(gameid, false);
+  if (latestGame.timeEnded != null) {
+    return;
+  }
 
-async function redeem() {
-  //get balance
-  //get latest game data
-  //calculate proportion of token burn request to claimable pot balance
-  //burn token, transfer SOL
-  //insert claim table, update game table on pot and token burnt
-  //function to transfer SOL to redeemer proportionally to their token amount
-}
+  latestGame.timeEnded = now;
+  latestGame.memecoin_usd_end = await getTokenPrice(
+    latestGame.contractAddress,
+    Number(latestGame.decimals)
+  );
 
-async function fetchRedemptionInfo(walletAddress) {
-  //function to transfer SOL to redeemer proportionally to their token amount
+  var winner = "over";
+  if (
+    Number(latestGame.memecoin_usd_end) > Number(latestGame.memecoin_usd_start)
+  ) {
+    winner = "under";
+  }
+  var burnerSource = "";
+  if (winner == "over") {
+    await executeTransfer(
+      0,
+      latestGame.under_pot_address,
+      getPublicKey58(latestGame.over_pot_address),
+      Number(latestGame.underPot) - 5000
+    );
+    latestGame.overPot =
+      Number(latestGame.overPot) + Number(latestGame.underPot);
+    latestGame.underPot = 0;
+    burnerSource = latestGame.over_pot_address;
+  } else {
+    await executeTransfer(
+      0,
+      latestGame.over_pot_address,
+      getPublicKey58(latestGame.under_pot_address),
+      Number(latestGame.overPot) - 5000
+    );
+    latestGame.underPot =
+      Number(latestGame.overPot) + Number(latestGame.underPot);
+    latestGame.overPot = 0;
+    burnerSource = latestGame.under_pot_address;
+  }
+  latestGame = Object.values(latestGame);
+
+  await updateGame(latestGame);
+
+  await startNewGame();
+  await fetchCurrentGameStatus();
+
+  //burn GOATAGI total buy_fee sell_fee
 }
 
 async function scrapeGMGNAI() {
@@ -935,4 +1097,5 @@ module.exports = {
   sellToken,
   validateBurnTransaction,
   validateTransaction,
+  redeemToken,
 };
