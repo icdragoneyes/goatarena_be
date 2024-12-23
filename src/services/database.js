@@ -1,8 +1,8 @@
 const { Pool } = require("pg");
 
 // Configure PostgreSQL connection
-var dbHost = 'localhost';
-if(process.env.DEV == "dev")dbHost = "104.248.43.26";
+var dbHost = "localhost";
+if (process.env.DEV == "dev") dbHost = "104.248.43.26";
 const pool = new Pool({
   host: dbHost, // Database host
   port: 5432, // Default PostgreSQL port
@@ -114,6 +114,31 @@ async function executeBuyToken(values) {
   try {
     const result = dbOperation(query, values);
     console.log("Inserted row:", result);
+    return result;
+  } catch (error) {
+    console.error("Error inserting into game table:", error);
+    throw error;
+  }
+}
+
+async function executeSellToken(values) {
+  //get latest token price
+  //calculate slippage
+  //insert buy transaction
+  //update token price on game table
+  const query = `ß
+        INSERT INTO public.sell_transactions (
+             session_id, solana_wallet_address, fees,
+            solana_tx_signature, side, token_price,
+            sell_token_amount, "time", sol_received,
+            progressive_fees, burn_tx_signature
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+        ) RETURNING id;
+    `;
+  try {
+    const result = dbOperation(query, values);
+    console.log("Inserted sell row:", result);
     return result;
   } catch (error) {
     console.error("Error inserting into game table:", error);
@@ -282,7 +307,7 @@ async function updateExample() {
   console.log("Updated rows:", rows);
 }
 
-async function updateGameAfterBuy(values) {
+async function updateGame(values) {
   const query = `
     UPDATE public.game
     SET
@@ -335,6 +360,7 @@ module.exports = {
   getGameInfo,
   executeBuyToken,
   getBuyTransaction,
-  updateGameAfterBuy,
+  updateGame,
   getSellTransaction,
+  executeSellToken
 };

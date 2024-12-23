@@ -29,10 +29,15 @@ const {
   getGameInfo,
   createGame,
   getBuyTransaction,
-  updateGameAfterBuy,
+  updateGame,
   getSellTransaction,
+  executeSellToken,
 } = require("../services/database");
-const { gameModel, buyModel } = require("../models/goatarenaModel");
+const {
+  gameModel,
+  buyModel,
+  sellTransactionModel,
+} = require("../models/goatarenaModel");
 
 const connection = new Connection(
   "https://wandering-light-sponge.solana-mainnet.quiknode.pro/8fad23df9dae2e832049ac721f6c5ee5166d3e81",
@@ -451,7 +456,7 @@ async function buyToken(wallet, side, txSignature, solAmount) {
     values = Object.values(values);
     var insert = await executeBuyToken(values);
     latestGame = Object.values(latestGame);
-    await updateGameAfterBuy(latestGame);
+    await updateGame(latestGame);
     return insert;
   }
   //check signature, from wallet, and target pot wallet, make sure is valid
@@ -478,6 +483,11 @@ async function sellToken(wallet, tokenAmount, side, txSignature) {
     return { error: "burn transaction signature already exist" };
   }
 
+  var sellValue = sellTransactionModel;
+
+  sellValue.session_id = Number(latestGame.id);
+  sellValue.solana_wallet_address = wallet;
+
   var tokenMintAddress = latestGame.over_token_address;
   if (side == "under") tokenMintAddress = latestGame.under_token_address;
 
@@ -489,11 +499,19 @@ async function sellToken(wallet, tokenAmount, side, txSignature) {
   );
 
   if (!isValid) return { error: "invalid burn transaction" };
+  sellValue.solana_tx_signature = txSignature;
 
   var solValue = latestGame.overPrice * (tokenAmount / 1e9);
-  if(side=="under"){
+  sellValue.token_price = latestGame.overPrice;
+  if (side == "under") {
+    sellValue.token_price = latestGame.underPrice;
     solValue = latestGame.underPrice * (tokenAmount / 1e9);
+    latestGame.underTokenBurnt =
+      Number(latestGame.underTokenBurnt) + tokenAmount;
+  } else {
+    latestGame.overTokenBurnt = Number(latestGame.overTokenBurnt) + tokenAmount;
   }
+
   const fee = 0.01 * solValue;
   const nett = 0.99 * solValue;
 
@@ -510,38 +528,76 @@ async function sellToken(wallet, tokenAmount, side, txSignature) {
 
   const progressiveTax = (minutesPassed / 60) * (99 / 100);
   const solNettMinusTax = (1 - progressiveTax) * nett;
-  const solRedistribution = progressiveTax * nett;
+  const solRedistribution = (2 * progressiveTax * nett) / 3;
+  sellValue.sell_token_amount = tokenAmount;
+  sellValue.sol_received(solNettMinusTax);
+
+  sellValue.fees = Number(fee);
+  sellValue.progressive_fees = Number(progressiveTax * nett);
+
+  latestGame.sell_fee = Number(latestGame.sell_fee) + Number(fee);
 
   var sourcePotKey = getPublicKey58(latestGame.over_pot_address);
-  if(side == "under") sourcePotKey = getPublicKey58(latestGame.under_pot_address);
-  
-  await executeTransfer(latestGame.id,sourcePotKey)
+  var targetPotKey = getPublicKey58(latestGame.under_pot_address);
+  if (side == "under") {
+    sourcePotKey = getPublicKey58(latestGame.under_pot_address);
+    targetPotKey = getPublicKey58(latestGame.over_pot_address);
+    latestGame.overPot = Number(latestGame.overPot) + Number(solRedistribution);
+    latestGame.underPot =
+      Number(latestGame.underPot) - (Number(solRedistribution) + 5000);
+  } else {
+    latestGame.overPot =
+      Number(latestGame.overPot) - (Number(solRedistribution) + 5000);
+    latestGame.underPot =
+      Number(latestGame.underPot) + Number(solRedistribution);
+  }
+
+  latestGame.totalPot =
+    Number(latestGame.overPot) + Number(latestGame.underPot);
+  latestGame.underPrice =
+    Number(latestGame.underPot) /
+    (Number(latestGame.underTokenMinted) - Number(latestGame.underTokenBurnt));
+
+  latestGame.overPrice =
+    Number(latestGame.overPot) /
+    (Number(latestGame.overTokenMinted) - Number(latestGame.overTokenBurnt));
+
+  var transferResult = await executeTransfer(
+    latestGame.id,
+    sourcePotKey,
+    targetPotKey,
+    solRedistribution
+  );
+
+  sellValue.burn_tx_signature = transferResult;
+  sellValue.time = new Date().toISOString();
+  sellValue.side = side;
+
+  sellValue = Object.values(sellValue);
+  var insert = await executeSellToken(sellValue);
+
+  latestGame = Object.values(latestGame);
+  await updateGame(latestGame);
+
+  await fetchCurrentGameStatus();
 
   //send : 1. SOL - fee + tax to player, redistribute progressive tax
   //update to sell and game table
 }
 
-
-async function executeTransfer(
-  gameId,
-  sourcePotKey,
-  targetPotKey,
-  amount_,
-  bet,
-  updateCanister
-) {
+async function executeTransfer(gameId, sourcePotKey, targetPotKey, amount_) {
   //5MJcZNtXqJNWDpdT8NhRBGtgGpT4cnfipn1ZQxq8QzpU2kBWwyAWrn93jm5AtMMwEvvyxroh9zbT7DzDJA196cQ1
   //console.log("about to transfer REWARD " + amount_ + " to " + solanaWallet);
   try {
     //var sk = convertHexToSolanaSecretKey(privateKeyArray);
     var sk = base58ToSecretKeyArray(sourcePotKey);
-    
+
     const senderKeypair = Keypair.fromSecretKey(Uint8Array.from(sk));
     const toPublicKey = new PublicKey(targetPotKey);
     //var amountInSOL = await getSolanaWalletBalance(senderKeypair.publicKey);
 
     // Connect to Solana cluster (mainnet, testnet, or devnet)
-   
+
     var amountInSOL = parseInt(Number(amount_));
     //console.log(senderKeypair.publicKey, "<<<<<source account");
     if (amountInSOL < 5000) {
@@ -549,14 +605,13 @@ async function executeTransfer(
 
       return "insufficient SOL";
     } else {
-      
       const transactionFee = await getTransactionFee(
         connection,
         senderKeypair.publicKey
       );
-      
+
       if (amountInSOL < transactionFee) return;
-      
+
       amountInSOL = amountInSOL - transactionFee;
       // Fetch latest blockhash to include in the transaction
 
@@ -607,11 +662,8 @@ async function executeTransfer(
         signature = signature__;
         console.log("Transaction successful with signature:", signature);
       } catch (e) {
-        
         return false;
       }
-
-      
 
       return signature;
     }
