@@ -31,24 +31,14 @@ if (process.env.DEV == "dev") {
   console.log("PROD MODE");
 }
 
-app.get("/", async (req, res) => {
-  try {
-    res.setHeader("Content-Type", "text/plain");
-    res.send("GOAT ARENA");
-  } catch (error) {
-    var msg = "Error " + error.message;
 
-    //console.log(msg);
-    res.status(500).json({ error: msg });
-  }
-});
 
 const PORT = process.env.PORT || 3015;
 console.log(process.env.DEV, "<<<<<<<<<< DEV");
 console.log("Your environment variable:", process.env.BOT_TOKEN);
 // Use routes
 
-app.use("/arena", goatarena);
+app.use("/", goatarena);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
