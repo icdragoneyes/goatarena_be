@@ -1,8 +1,10 @@
 const { Pool } = require("pg");
 
 // Configure PostgreSQL connection
+var dbHost = 'localhost';
+if(process.env.DEV == "dev")dbHost = "104.248.43.26";
 const pool = new Pool({
-  host: "104.248.43.26", // Database host
+  host: dbHost, // Database host
   port: 5432, // Default PostgreSQL port
   user: "shepherd", // Your PostgreSQL username
   password: "goat888agi", // Your PostgreSQL password
