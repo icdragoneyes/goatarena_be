@@ -237,6 +237,31 @@ async function getGameInfo(gameId, latest) {
   }
 }
 
+async function getBuyers(gameId, latest) {
+  try {
+    
+    var query =
+      "SELECT * FROM public.buy_transactions WHERE session_id = $1 ORDER BY id DESC;";
+    var values = [gameId];
+
+    const res = await dbOperation(query, values);
+    console.log(res,"<<< a" )
+    //console.log(res, "<< res");
+    if (res.length === 0) {
+      return null; // Return null if no game is found
+    }
+
+    // Map the result into a JSON object
+
+    // console.log(gameJson, "<<<< game ");
+    return res;
+  } catch (err) {
+    console.error("Error fetching buyers by ID:", err);
+    //throw err;
+    return { error: err };
+  }
+}
+
 async function getBuyTransaction(by, val, all) {
   try {
     var query = `
@@ -440,5 +465,6 @@ module.exports = {
   getSellTransaction,
   executeSellToken,
   getClaimTransaction,
-  executeRedeem
+  executeRedeem,
+  getBuyers,
 };

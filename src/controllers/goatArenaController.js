@@ -1,6 +1,6 @@
 const puppeteer = require("puppeteer-extra");
 
-const { Connection, Keypair, PublicKey } = require("@solana/web3.js");
+const { Connection, Keypair, PublicKey,Transaction,getTransactionFee } = require("@solana/web3.js");
 const { Metaplex } = require("@metaplex-foundation/js");
 
 const {
@@ -33,6 +33,7 @@ const {
   getSellTransaction,
   executeSellToken,
   getClaimTransaction,
+  getBuyers,
 } = require("../services/database");
 const {
   gameModel,
@@ -62,6 +63,7 @@ function generateKey() {
   x = bs58.encode(x);
   return x;
 }
+
 
 async function startNewGame() {
   //trigger stop game, show preparing for next round
@@ -405,12 +407,12 @@ async function buyToken(wallet, side, txSignature, solAmount) {
   }
   var isValid = true;
 
-  isValid = await validateTransaction(
+  /*isValid = await validateTransaction(
     wallet,
     targetWallet,
     solAmount,
     txSignature
-  );
+  ); */
   //console.log(isValid, "<<<isv");
   //return;
   if (isValid) {
@@ -907,6 +909,7 @@ async function fetchCurrentGameStatus() {
   latestGame.under_pot_address = getPublicKey58(latest.under_pot_address);
   latestGame.over_pot_address = getPublicKey58(latest.over_pot_address);
   latestGame.goatArenaBurnerWallet = getPublicKey58(masterWallet);
+  latestGame.buyers = await getBuyers(latestGame.id,false);
   delete latestGame.buy_fee;
   delete latestGame.sell_fee;
   delete latestGame.memecoinPriceStart;

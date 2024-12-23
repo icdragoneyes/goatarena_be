@@ -8,12 +8,12 @@ const {
   sellToken,
 } = require("../controllers/goatArenaController");
 
-
 const router = express.Router();
 
 router.get("/", async (req, res) => {
   console.log("ok");
   try {
+    await fetchCurrentGameStatus();
     const latest = global.lastGame;
     const block = { latest };
 
@@ -37,7 +37,7 @@ router.post("/buy", async (req, res) => {
     var a = await buyToken(
       "EHcZGQPZgn2igSxzRB4dtzSHBTK1kaZj55enbyKWSCCU",
       "under",
-      "11112",
+      "12345",
       1000000000
     );
 
