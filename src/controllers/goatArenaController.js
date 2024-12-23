@@ -844,7 +844,7 @@ async function getTokenBalance(tokenMintAddress, walletAddress) {
 }
 
 function getPublicKey58(secretKey) {
-  console.log("errr5");
+ // console.log("errr5");
   return Keypair.fromSecretKey(
     Uint8Array.from(base58ToSecretKeyArray(secretKey))
   ).publicKey.toBase58();
