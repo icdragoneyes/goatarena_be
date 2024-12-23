@@ -1,4 +1,4 @@
-export const gameModel = {
+ const gameModel = {
   time_started_1: 0,
   memecoin_name_2: "",
   contract_address_3: "",
@@ -28,7 +28,7 @@ export const gameModel = {
   under_pot_address: "",
 };
 
-export const buyModel = {
+const buyModel = {
   session_id: 0,
   solana_wallet_address: "",
   fees: 0,
@@ -41,7 +41,7 @@ export const buyModel = {
   tokens_received: 0,
 };
 
-export const sellTransactionModel = {
+const sellTransactionModel = {
   session_id: 0, // Foreign key, default to null
   solana_wallet_address: "", // Default to an empty string
   fees: 0, // Default to 0
@@ -53,4 +53,10 @@ export const sellTransactionModel = {
   sol_received: 0, // Default to 0
   progressive_fees: 0, // Default to 0
   burn_tx_signature: "",
+};
+
+module.exports = {
+  gameModel,
+  buyModel,
+  sellTransactionModel
 };
