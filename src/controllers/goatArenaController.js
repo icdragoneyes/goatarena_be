@@ -523,7 +523,8 @@ async function sellToken(wallet, tokenAmount, side, txSignature) {
   const fetchedTimestamp = new Date(latestGame.startTime); // Replace with your fetched timestamp
 
   // Add 60 minutes
-  const next60Minutes = new Date(fetchedTimestamp.getTime() + 60 * 60 * 1000);
+  var next60Minutes = new Date(fetchedTimestamp.getTime() + 60 * 60 * 1000);
+  next60Minutes = new Date(next60Minutes.getTime() - 11 * 60 * 60 * 1000);
   console.log("Next 60 Minutes:", next60Minutes.toISOString());
 
   // Calculate minutes passed since fetched timestamp
