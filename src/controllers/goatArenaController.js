@@ -378,7 +378,7 @@ function calculateTokenAmount(solana, tokenPrice) {
   console.log(solana, "<< sol");
   console.log(tokenPrice, "<< price");
   const solAfterFee = solana * 0.99;
-  const tokenAmount = (solAfterFee / 1e9 / (tokenPrice / 1e9)) * 1e9;
+  const tokenAmount = parseInt(Number((solAfterFee / 1e9 / (tokenPrice / 1e9)) * 1e9).toFixed(0));
   return tokenAmount;
 }
 
@@ -447,7 +447,7 @@ async function buyToken(wallet, side, txSignature, solAmount) {
     }
 
     latestGame.buy_fee =
-      Number(latestGame.buy_fee) + parseInt(0.01 * Number(solAmount));
+      Number(latestGame.buy_fee) + parseInt(Number(0.01 * Number(solAmount)).toFixed(0));
     latestGame.claimableWinningPotInSol =
       Number(latestGame.totalPot) -
       (Number(latestGame.buy_fee) + Number(latestGame.sell_fee));
