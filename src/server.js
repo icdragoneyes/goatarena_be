@@ -48,7 +48,7 @@ console.log(process.env.DEV, "<<<<<<<<<< DEV");
 console.log("Your environment variable:", process.env.BOT_TOKEN);
 // Use routes
 
-app.use("/", goatarena);
+app.use("/arena", goatarena);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
