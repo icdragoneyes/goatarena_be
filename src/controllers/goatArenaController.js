@@ -1,6 +1,12 @@
 const puppeteer = require("puppeteer-extra");
 
-const { Connection, Keypair, PublicKey,Transaction,getTransactionFee } = require("@solana/web3.js");
+const {
+  Connection,
+  Keypair,
+  PublicKey,
+  Transaction,
+  getTransactionFee,
+} = require("@solana/web3.js");
 const { Metaplex } = require("@metaplex-foundation/js");
 
 const {
@@ -63,7 +69,6 @@ function generateKey() {
   x = bs58.encode(x);
   return x;
 }
-
 
 async function startNewGame() {
   //trigger stop game, show preparing for next round
@@ -378,7 +383,9 @@ function calculateTokenAmount(solana, tokenPrice) {
   console.log(solana, "<< sol");
   console.log(tokenPrice, "<< price");
   const solAfterFee = solana * 0.99;
-  const tokenAmount = parseInt(Number((solAfterFee / 1e9 / (tokenPrice / 1e9)) * 1e9).toFixed(0));
+  const tokenAmount = parseInt(
+    Number((solAfterFee / 1e9 / (tokenPrice / 1e9)) * 1e9).toFixed(0)
+  );
   return tokenAmount;
 }
 
@@ -447,7 +454,8 @@ async function buyToken(wallet, side, txSignature, solAmount) {
     }
 
     latestGame.buy_fee =
-      Number(latestGame.buy_fee) + parseInt(Number(0.01 * Number(solAmount)).toFixed(0));
+      Number(latestGame.buy_fee) +
+      parseInt(Number(0.01 * Number(solAmount)).toFixed(0));
     latestGame.claimableWinningPotInSol =
       Number(latestGame.totalPot) -
       (Number(latestGame.buy_fee) + Number(latestGame.sell_fee));
@@ -845,7 +853,7 @@ async function getTokenBalance(tokenMintAddress, walletAddress) {
 }
 
 function getPublicKey58(secretKey) {
- // console.log("errr5");
+  // console.log("errr5");
   return Keypair.fromSecretKey(
     Uint8Array.from(base58ToSecretKeyArray(secretKey))
   ).publicKey.toBase58();
@@ -856,11 +864,11 @@ var fetchingLatestGame = false;
 const perSecondProcess = setInterval(async () => {
   //console.log(global.lastGame ,"<<< stat")
   //console.log("fetching...")
-  if(global.lastGame.status === undefined){
+  if (global.lastGame.status === undefined) {
     //console.log("fetching...")
     await fetchCurrentGameStatus();
-  }else{
-   //console.log(global.lastGame.data,"<<< start time");
+  } else {
+    //console.log(global.lastGame.data,"<<< start time");
   }
   if (process.env.DEV == "dev") {
     return;
@@ -880,8 +888,8 @@ const perSecondProcess = setInterval(async () => {
 
     // Add 60 minutes
     const next60Minutes = new Date(fetchedTimestamp.getTime() + 60 * 60 * 1000);
-    console.log(now,"<<< now");
-    console.log(next60Minutes,"<<< next");
+    console.log(now, "<<< now");
+    console.log(next60Minutes, "<<< next");
     if (now > next60Minutes) {
       try {
         fetchingLatestGame = true;
@@ -920,7 +928,7 @@ async function fetchCurrentGameStatus() {
   latestGame.under_pot_address = getPublicKey58(latest.under_pot_address);
   latestGame.over_pot_address = getPublicKey58(latest.over_pot_address);
   latestGame.goatArenaBurnerWallet = getPublicKey58(masterWallet);
-  latestGame.buyers = await getBuyers(latestGame.id,false);
+  latestGame.buyers = await getBuyers(latestGame.id, false);
   delete latestGame.buy_fee;
   delete latestGame.sell_fee;
   delete latestGame.memecoinPriceStart;
@@ -942,10 +950,16 @@ async function fetchCurrentGameStatus() {
 async function settle() {
   const now = new Date().toISOString();
   var latestGame = await getGameInfo(gameid, false);
+  var buyers = await getBuyers();
+  if (buyers.length <= 0) {
+    await startNewGame();
+    await fetchCurrentGameStatus();
+    return;
+  }
   if (latestGame.timeEnded != null) {
     return;
   }
-  console.log("settling...")
+  console.log("settling...");
 
   latestGame.timeEnded = now;
   latestGame.memecoin_usd_end = await getTokenPrice(
